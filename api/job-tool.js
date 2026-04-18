@@ -12,13 +12,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { location, jobDetails } = req.body || {};
+    const { location, jobDetails, hourlyRate } = req.body || {};
 
     if (!location || !jobDetails) {
       return res.status(400).json({
         error: 'Missing location or job details'
       });
     }
+
+    const finalHourlyRate = hourlyRate || '95';
+    const preferredSuppliers =
+      'PlaceMakers, Mitre 10, Bunnings, ITM, Carters';
+    const currency = 'NZD';
 
     const prompt = `
 You are my NZ building estimating assistant. Internally analyse NZ building rules, standard practice, environmental exposure, durability requirements, and realistic construction methods — but do not display this internal analysis.
@@ -50,7 +55,7 @@ STAGE 2 — PRICING MODE
 Use only confirmed data and the generated materials list from Stage 1.
 
 JOB DETAILS (auto filled from Stage 1)
-Hourly rate: [ INPUT YOUR HOURLY RATE HERE ]
+Hourly rate: ${finalHourlyRate}
 Labour hours: Estimate using NZ build norms if not supplied
 Materials buffer: 20% default unless specified
 
@@ -59,14 +64,14 @@ REQUIRED METHOD
 Convert to purchasable units, round up to full packs/lengths, add +5% timber waste buffer to timber only, round again.
 
 2) Supplier Pricing Order (mandatory)
-[ INPUT PREFERRED SUPPLIERS HERE ] → Other local suppliers → Web search last
+${preferredSuppliers} → Other local suppliers → Web search last
 
 Choose lowest compliant equivalent. Note substitutions clearly.
 Timber treatment must match spec (no downgrades)
 
 4) Pricing Table Output
 Return ONE table with:
-Category, Item, Spec/Size, Quantity (Adjusted), Unit, Supplier, Product name, Pack size/length, Unit price [ YOUR COUNTRY CURRENCY ], Line total, Link, Notes/Substitution
+Category, Item, Spec/Size, Quantity (Adjusted), Unit, Supplier, Product name, Pack size/length, Unit price ${currency}, Line total, Link, Notes/Substitution
 
 5) Labour + Totals
 Labour = hours × rate
@@ -93,7 +98,7 @@ GST
 FINAL TOTAL incl GST
 
 OUTPUT FORMAT RULES
-Currency: [ YOUR COUNTRY CURRENCY ]
+Currency: ${currency}
 Money: 2 decimals
 Every priced line must include a working product link
 
@@ -109,7 +114,7 @@ MATERIALS LIST TO PRICE: Generated automatically from Stage 1 output.
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: 'gpt-5-mini',
@@ -122,11 +127,16 @@ MATERIALS LIST TO PRICE: Generated automatically from Stage 1 output.
     if (!openaiResponse.ok) {
       console.error('OpenAI API error:', data);
       return res.status(500).json({
-        error: data?.error?.message || 'OpenAI request failed'
+        error:
+          data?.error?.message ||
+          JSON.stringify(data) ||
+          'OpenAI request failed'
       });
     }
 
-    const result = data.output_text || 'No result returned';
+    const result =
+      data.output_text ||
+      'No result returned from OpenAI.';
 
     return res.status(200).json({ result });
   } catch (error) {

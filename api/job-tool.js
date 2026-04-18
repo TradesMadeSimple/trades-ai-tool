@@ -1,6 +1,30 @@
-export default function handler(req, res) {
-  res.status(200).json({
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      message: 'Method not allowed'
+    });
+  }
+
+  const { location, jobDetails } = req.body || {};
+
+  if (!location || !jobDetails) {
+    return res.status(400).json({
+      message: 'Location and job details are required'
+    });
+  }
+
+  return res.status(200).json({
     success: true,
-    message: "Trades AI Tool is live"
+    result:
+`ULTIMATE QUOTE TEST
+
+Location:
+${location}
+
+Job Details:
+${jobDetails}
+
+This is just a test response from Vercel.
+Your real Ultimate Quote prompt will go here next.`
   });
 }

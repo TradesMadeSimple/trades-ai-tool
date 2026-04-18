@@ -132,7 +132,7 @@ MATERIALS LIST TO PRICE: Generated automatically from Stage 1 output.
   } catch (error) {
     console.error('Server error:', error);
     return res.status(500).json({
-      error: 'Something went wrong generating the quote'
+      error: error.message || 'Something went wrong generating the quote'
     });
   }
 }

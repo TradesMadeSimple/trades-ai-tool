@@ -1,3 +1,10 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -12,7 +19,66 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { location, jobDetails, hourlyRate } = req.body || {};
+    const {
+      mode,
+      user_id,
+      location,
+      jobDetails,
+      hourlyRate,
+      materialBuffer,
+      promptData
+    } = req.body || {};
+
+    if (mode === 'savePrompt') {
+      if (!user_id) {
+        return res.status(400).json({ error: 'Missing user_id' });
+      }
+
+      const { data, error } = await supabase
+        .from('master_quote_prompts')
+        .upsert(
+          {
+            user_id,
+            hourly_rate: hourlyRate || null,
+            location: location || null,
+            material_buffer: materialBuffer || null,
+            prompt_data: promptData || null
+          },
+          { onConflict: 'user_id' }
+        )
+        .select();
+
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Prompt saved successfully',
+        data
+      });
+    }
+
+    if (mode === 'loadPrompt') {
+      if (!user_id) {
+        return res.status(400).json({ error: 'Missing user_id' });
+      }
+
+      const { data, error } = await supabase
+        .from('master_quote_prompts')
+        .select('*')
+        .eq('user_id', user_id)
+        .maybeSingle();
+
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: data || null
+      });
+    }
 
     if (!location || !jobDetails) {
       return res.status(400).json({
@@ -33,6 +99,7 @@ Reply with exactly 3 short lines.
 
 Location: ${location}
 Hourly Rate: ${hourlyRate || 'missing'}
+Material Buffer: ${materialBuffer || 'missing'}
 Job Details: ${jobDetails}
 `;
 
@@ -40,7 +107,7 @@ Job Details: ${jobDetails}
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model: 'gpt-5.2',
@@ -56,7 +123,6 @@ Job Details: ${jobDetails}
     const data = await openaiResponse.json();
 
     if (!openaiResponse.ok) {
-      console.error('OpenAI API error:', data);
       return res.status(500).json({
         error: data?.error?.message || JSON.stringify(data)
       });
@@ -66,7 +132,6 @@ Job Details: ${jobDetails}
       result: data.output_text || JSON.stringify(data)
     });
   } catch (error) {
-    console.error('Server error:', error);
     return res.status(500).json({
       error: error.message || 'Something went wrong generating the quote'
     });

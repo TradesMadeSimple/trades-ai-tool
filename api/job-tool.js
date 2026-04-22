@@ -8,6 +8,15 @@ const supabase = createClient(
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
+const DAILY_RUN_LIMIT = 100;
+const TOOL_COSTS = {
+  generate: 4,
+  clarification_answers: 0,
+  revise_quote: 0,
+  savePrompt: 0,
+  loadPrompt: 0
+};
+
 function json(res, status, body) {
   return res.status(status).json(body);
 }
@@ -21,12 +30,6 @@ function setCors(res) {
 function safeText(value) {
   if (value === null || value === undefined) return '';
   return String(value).trim();
-}
-
-function safeNumberOrNull(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
 }
 
 function extractTextFromChatResponse(data) {
@@ -284,6 +287,100 @@ function parseStage1Output(text) {
   };
 }
 
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function getProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, credits, plan')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getTodayUsageCount(userId) {
+  const today = getTodayKey();
+
+  const { count, error } = await supabase
+    .from('tool_usage_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('usage_date', today);
+
+  if (error) throw error;
+  return count || 0;
+}
+
+async function logUsage({ userId, mode, creditsUsed }) {
+  const { error } = await supabase
+    .from('tool_usage_logs')
+    .insert({
+      user_id: userId,
+      mode,
+      credits_used: creditsUsed,
+      usage_date: getTodayKey()
+    });
+
+  if (error) throw error;
+}
+
+async function deductCredits(userId, creditsToDeduct) {
+  if (!creditsToDeduct || creditsToDeduct <= 0) return;
+
+  const profile = await getProfile(userId);
+  if (!profile) {
+    throw new Error('Profile not found');
+  }
+
+  const currentCredits = Number(profile.credits || 0);
+  if (currentCredits < creditsToDeduct) {
+    throw new Error(`Not enough credits. You need ${creditsToDeduct} credits.`);
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      credits: currentCredits - creditsToDeduct,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
+
+  if (error) throw error;
+}
+
+async function enforceUsageLimits(body, mode) {
+  const userId = safeText(body.user_id);
+  const toolCost = TOOL_COSTS[mode] ?? TOOL_COSTS.generate;
+
+  if (!userId) {
+    throw new Error('Missing user_id');
+  }
+
+  const profile = await getProfile(userId);
+  if (!profile) {
+    throw new Error('Profile not found');
+  }
+
+  const currentCredits = Number(profile.credits || 0);
+  if (currentCredits < toolCost) {
+    throw new Error(`Not enough credits. You need ${toolCost} credits.`);
+  }
+
+  const todayUsageCount = await getTodayUsageCount(userId);
+  if (todayUsageCount >= DAILY_RUN_LIMIT) {
+    throw new Error(`Daily usage limit reached. Max ${DAILY_RUN_LIMIT} runs per day.`);
+  }
+
+  return {
+    userId,
+    toolCost
+  };
+}
+
 async function handleGenerate(req, res, body) {
   const businessLocation = safeText(body.location);
   const jobDetails = safeText(body.jobDetails);
@@ -297,6 +394,8 @@ async function handleGenerate(req, res, body) {
       error: 'Missing required fields'
     });
   }
+
+  const { userId, toolCost } = await enforceUsageLimits(body, 'generate');
 
   const prompt = buildMasterPromptStage1({
     businessLocation,
@@ -313,6 +412,9 @@ async function handleGenerate(req, res, body) {
       content: prompt
     }
   ]);
+
+  await deductCredits(userId, toolCost);
+  await logUsage({ userId, mode: 'generate', creditsUsed: toolCost });
 
   const parsed = parseStage1Output(text);
 

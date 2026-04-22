@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
@@ -390,9 +390,7 @@ async function handleGenerate(req, res, body) {
   const preferredSuppliers = safeText(body.preferredSuppliers);
 
   if (!businessLocation || !jobDetails || !hourlyRate || !labourMarkup || !materialMarkup || !preferredSuppliers) {
-    return json(res, 400, {
-      error: 'Missing required fields'
-    });
+    return json(res, 400, { error: 'Missing required fields' });
   }
 
   const { userId, toolCost } = await enforceUsageLimits(body, 'generate');
@@ -406,12 +404,7 @@ async function handleGenerate(req, res, body) {
     preferredSuppliers
   });
 
-  const text = await openAIChat([
-    {
-      role: 'user',
-      content: prompt
-    }
-  ]);
+  const text = await openAIChat([{ role: 'user', content: prompt }]);
 
   await deductCredits(userId, toolCost);
   await logUsage({ userId, mode: 'generate', creditsUsed: toolCost });
@@ -435,9 +428,7 @@ async function handleClarificationAnswers(req, res, body) {
   const answerMap = Array.isArray(body.answerMap) ? body.answerMap : [];
 
   if (!businessLocation || !jobDetails || !hourlyRate || !labourMarkup || !materialMarkup || !preferredSuppliers) {
-    return json(res, 400, {
-      error: 'Missing required fields'
-    });
+    return json(res, 400, { error: 'Missing required fields' });
   }
 
   const clarificationAnswers = answerMap
@@ -455,16 +446,9 @@ async function handleClarificationAnswers(req, res, body) {
     clarificationAnswers: clarificationAnswers || 'No clarification answers provided'
   });
 
-  const text = await openAIChat([
-    {
-      role: 'user',
-      content: prompt
-    }
-  ]);
+  const text = await openAIChat([{ role: 'user', content: prompt }]);
 
-  return json(res, 200, {
-    result: text || 'Final quote generated.'
-  });
+  return json(res, 200, { result: text || 'Final quote generated.' });
 }
 
 async function handleReviseQuote(req, res, body) {
@@ -478,9 +462,7 @@ async function handleReviseQuote(req, res, body) {
   const editRequest = safeText(body.editRequest);
 
   if (!businessLocation || !jobDetails || !latestQuote || !editRequest) {
-    return json(res, 400, {
-      error: 'Missing required fields for quote revision'
-    });
+    return json(res, 400, { error: 'Missing required fields for quote revision' });
   }
 
   const prompt = buildRevisionPrompt({
@@ -494,16 +476,9 @@ async function handleReviseQuote(req, res, body) {
     editRequest
   });
 
-  const text = await openAIChat([
-    {
-      role: 'user',
-      content: prompt
-    }
-  ]);
+  const text = await openAIChat([{ role: 'user', content: prompt }]);
 
-  return json(res, 200, {
-    result: text || 'Quote revised.'
-  });
+  return json(res, 200, { result: text || 'Quote revised.' });
 }
 
 async function handleSavePrompt(req, res, body) {
@@ -573,25 +548,11 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const mode = safeText(body.mode);
 
-    if (mode === 'savePrompt') {
-      return await handleSavePrompt(req, res, body);
-    }
-
-    if (mode === 'loadPrompt') {
-      return await handleLoadPrompt(req, res, body);
-    }
-
-    if (mode === 'generate' || !mode) {
-      return await handleGenerate(req, res, body);
-    }
-
-    if (mode === 'clarification_answers') {
-      return await handleClarificationAnswers(req, res, body);
-    }
-
-    if (mode === 'revise_quote') {
-      return await handleReviseQuote(req, res, body);
-    }
+    if (mode === 'savePrompt') return await handleSavePrompt(req, res, body);
+    if (mode === 'loadPrompt') return await handleLoadPrompt(req, res, body);
+    if (mode === 'generate' || !mode) return await handleGenerate(req, res, body);
+    if (mode === 'clarification_answers') return await handleClarificationAnswers(req, res, body);
+    if (mode === 'revise_quote') return await handleReviseQuote(req, res, body);
 
     return json(res, 400, { error: 'Invalid mode' });
   } catch (error) {

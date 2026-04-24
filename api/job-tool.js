@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1';
 
 const DAILY_RUN_LIMIT = 100;
 const TOOL_COSTS = {
@@ -76,7 +76,7 @@ BUILDING ESTIMATING + PRICING MASTER PROMPT
 
 You are my professional building estimating assistant. Internally analyse local building rules, standard practice, environmental exposure, durability requirements, and realistic construction methods based on the business location and job location — but do not display this internal analysis.
 
-PROJECT DETAILS (job input only)
+PROJECT DETAILS
 ${jobDetails}
 
 BUSINESS INPUTS
@@ -86,24 +86,45 @@ Labour Mark Up %: ${labourMarkup}
 Material Mark Up %: ${materialMarkup}
 Preferred Suppliers: ${preferredSuppliers}
 
-ENVIRONMENTAL CONTEXT (internal use only)
+ENVIRONMENTAL CONTEXT
 Use the business/job location to assess climate, coastal exposure, salt air, wind, humidity, rainfall, corrosion risk, frost zones, and durability requirements. Use this to select correct fixings, timber treatments, and suitable materials.
 
 STAGE 1 — MATERIAL TAKEOFF MODE
+
 Before producing any output you must internally complete:
-Generate missing data using standard residential assumptions for the project location
-Produce up to 10 clarification questions if needed (show questions only)
-Define ASSUMPTIONS (show concise list)
-Perform compliance logic, code logic, fixing logic, materials calculations, and build guide cross checks internally (DO NOT show these)
+- Generate missing data using standard residential assumptions for the project location.
+- Identify every missing detail that would materially affect pricing accuracy.
+- Produce up to 10 clarification questions if needed.
+- Define assumptions.
+- Perform compliance logic, code logic, fixing logic, materials calculations, and build guide cross checks internally.
+- Do NOT show internal analysis.
 
 STAGE 1 OUTPUT RULES
-ONLY output:
-Clarification questions (list only)
-ASSUMPTIONS USED (short, factual)
 
-Do NOT output materials, pricing, calculations, or summaries.
-Do NOT proceed until the user replies.
-After answers are received automatically move to Stage 2.
+Return ONLY numbered clarification questions first.
+
+Do NOT write headings before the questions.
+Do NOT write "Clarification questions:".
+Do NOT write an intro sentence.
+Do NOT only ask one or two questions unless the job is already extremely clear.
+
+Ask ALL useful questions required for an accurate quote.
+Ask up to 10 questions.
+Each question must be specific, practical, and needed for pricing accuracy.
+Each question must be on its own numbered line.
+
+After the questions, output exactly this heading:
+
+ASSUMPTIONS USED
+
+Then list concise numbered assumptions.
+
+Do NOT output materials.
+Do NOT output pricing.
+Do NOT output calculations.
+Do NOT output totals.
+Do NOT output a quote summary.
+Do NOT proceed to Stage 2 until the user replies.
 `.trim();
 }
 
@@ -121,7 +142,7 @@ BUILDING ESTIMATING + PRICING MASTER PROMPT
 
 You are my professional building estimating assistant. Internally analyse local building rules, standard practice, environmental exposure, durability requirements, and realistic construction methods based on the business location and job location — but do not display this internal analysis.
 
-PROJECT DETAILS (job input only)
+PROJECT DETAILS
 ${jobDetails}
 
 BUSINESS INPUTS
@@ -134,68 +155,117 @@ Preferred Suppliers: ${preferredSuppliers}
 CLARIFICATION ANSWERS
 ${clarificationAnswers}
 
-ENVIRONMENTAL CONTEXT (internal use only)
+ENVIRONMENTAL CONTEXT
 Use the business/job location to assess climate, coastal exposure, salt air, wind, humidity, rainfall, corrosion risk, frost zones, and durability requirements. Use this to select correct fixings, timber treatments, and suitable materials.
 
 STAGE 2 — PRICING MODE
-Use only confirmed data and the generated materials list from Stage 1.
 
-JOB DETAILS (auto filled from Stage 1)
-Hourly Rate: ${hourlyRate}
-Labour Mark Up %: ${labourMarkup}
-Material Mark Up %: ${materialMarkup}
-Labour hours: Estimate using standard local construction norms if not supplied.
+Use only confirmed data, user answers, and sensible local residential construction assumptions.
 
 REQUIRED METHOD
+
 1) Normalise Materials
-Convert to purchasable units, round up to full packs/lengths, add +5% timber waste buffer to timber only, then round again.
+Convert to purchasable units.
+Round up to full packs, lengths, bags, sheets, boxes, or standard supplier units.
+Add +5% timber waste buffer to timber only, then round again.
 
-2) Supplier Pricing Order (mandatory)
-Preferred Suppliers → Other local suppliers → Web search last
-Choose lowest compliant equivalent. Note substitutions clearly.
-Timber treatment and product specs must match requirements (no downgrades).
+2) Supplier Pricing Order
+Use this supplier order:
+${preferredSuppliers} → other local suppliers → web search last
 
-3) Pricing Table Output
-Return ONE table with:
-Category, Item, Spec/Size, Quantity (Adjusted), Unit, Supplier, Product Name, Pack Size/Length, Unit Price [LOCAL CURRENCY], Line Total, Link, Notes/Substitution
+Choose the lowest compliant equivalent.
+Note substitutions clearly.
+Timber treatment and product specs must match requirements.
+No downgrades.
 
-4) Labour + Totals
-Labour = hours × hourly rate
-Apply Labour Mark Up % to labour subtotal
-Materials subtotal = sum of lines
-Apply Material Mark Up % to materials subtotal
-Add local tax / GST / VAT based on business location
+3) Materials Pricing Table
 
-FINAL OUTPUT MUST INCLUDE
+Return ONE clean markdown table.
 
-Labour Breakdown (mandatory)
-Short task breakdown with hours (must match total):
-Set out & levels
-Excavation & footings
-Framing install
-Main construction/install phase
-Finishing & tidy
+Use this exact table format:
 
-Cost Summary
-Materials subtotal
-Materials mark up amount
-Labour subtotal
-Labour mark up amount
-Subtotal before tax
-Tax amount
-FINAL TOTAL incl tax
+| Category | Item | Spec/Size | Qty | Unit | Supplier | Product Name | Unit Price | Line Total | Link | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+Rules:
+- Every material must be its own row.
+- Do NOT output the materials as a paragraph.
+- Do NOT merge all materials into one block of text.
+- Keep product names short and readable.
+- Use clear quantities.
+- Every priced line should include a product link where possible.
+- If price is not found, write NOT FOUND.
+
+4) Labour Breakdown
+
+Return labour as a markdown table.
+
+Use this exact table format:
+
+| Task | Estimated Hours | Rate | Markup | Line Total | Notes |
+|---|---:|---:|---:|---:|---|
+
+Include practical trade tasks that suit the job.
+The labour hours must add up correctly.
+Labour = hours × hourly rate.
+Apply Labour Mark Up % to labour subtotal.
+
+5) Cost Summary
+
+Return cost summary as a markdown table.
+
+Use this exact table format:
+
+| Cost Item | Amount |
+|---|---:|
+
+Include:
+- Materials subtotal
+- Materials mark up amount
+- Labour subtotal
+- Labour mark up amount
+- Subtotal before tax
+- Tax amount
+- FINAL TOTAL incl tax
+
+FINAL OUTPUT STRUCTURE
+
+Use this exact structure:
+
+## Job Summary
+
+Short plain English summary of the job.
+
+## Assumptions Used
+
+Numbered assumptions.
+
+## Materials Breakdown
+
+Markdown table only.
+
+## Labour Breakdown
+
+Markdown table only.
+
+## Cost Summary
+
+Markdown table only.
+
+## Notes / Substitutions
+
+Short bullet list.
 
 OUTPUT FORMAT RULES
-Currency must match business location
-Use 2 decimal places
-Every priced line must include a working product link
-If price not found:
-Unit Price = NOT FOUND
-Supplier = NOT FOUND
-Suggest closest alternative
 
-MATERIALS LIST TO PRICE
-Generated automatically from Stage 1 output.
+Currency must match business location.
+Use 2 decimal places for money.
+Use clean markdown formatting.
+Use headings.
+Use tables.
+Do NOT output the final quote as one huge paragraph.
+Do NOT apologise.
+Do NOT include hidden/internal analysis.
 `.trim();
 }
 
@@ -239,17 +309,37 @@ ${editRequest}
 
 Revise the full quote.
 Return the complete updated quote, not just a summary.
-Keep the same structure:
-- Job Summary
-- Assumptions Used
-- Materials Breakdown
-- Labour Breakdown
-- Cost Summary
-- What Changed
-
 Recalculate totals fully.
+
+Use this exact structure:
+
+## Job Summary
+
+## Assumptions Used
+
+## Materials Breakdown
+
+Use a markdown table:
+| Category | Item | Spec/Size | Qty | Unit | Supplier | Product Name | Unit Price | Line Total | Link | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+## Labour Breakdown
+
+Use a markdown table:
+| Task | Estimated Hours | Rate | Markup | Line Total | Notes |
+|---|---:|---:|---:|---:|---|
+
+## Cost Summary
+
+Use a markdown table:
+| Cost Item | Amount |
+|---|---:|
+
+## What Changed
+
 Currency must match business location.
 Use 2 decimal places.
+Do NOT output the quote as one huge paragraph.
 `.trim();
 }
 
@@ -271,7 +361,20 @@ function parseStage1Output(text) {
       continue;
     }
 
-    const clean = line.replace(/^[-*\d.)\s]+/, '').trim();
+    if (
+      lower === 'clarification questions' ||
+      lower === 'clarification questions:' ||
+      lower.includes('here are') ||
+      lower.includes('before i can')
+    ) {
+      continue;
+    }
+
+    const clean = line
+      .replace(/^[-*\d.)\s]+/, '')
+      .replace(/^question\s*\d+\s*[:.)-]\s*/i, '')
+      .trim();
+
     if (!clean) continue;
 
     if (inAssumptions) {
@@ -282,7 +385,7 @@ function parseStage1Output(text) {
   }
 
   return {
-    followUpQuestions: questions.slice(0, 2),
+    followUpQuestions: questions,
     assumptions
   };
 }

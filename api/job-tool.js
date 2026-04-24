@@ -89,42 +89,51 @@ Preferred Suppliers: ${preferredSuppliers}
 ENVIRONMENTAL CONTEXT
 Use the business/job location to assess climate, coastal exposure, salt air, wind, humidity, rainfall, corrosion risk, frost zones, and durability requirements. Use this to select correct fixings, timber treatments, and suitable materials.
 
-STAGE 1 — MATERIAL TAKEOFF MODE
+STAGE 1 — CLARIFICATION MODE
 
-Before producing any output you must internally complete:
-- Generate missing data using standard residential assumptions for the project location.
-- Identify every missing detail that would materially affect pricing accuracy.
-- Produce up to 10 clarification questions if needed.
-- Define assumptions.
-- Perform compliance logic, code logic, fixing logic, materials calculations, and build guide cross checks internally.
-- Do NOT show internal analysis.
+Before producing any output, internally review:
+- Job scope
+- Measurements
+- Site conditions
+- Access
+- Ground conditions
+- Existing structures
+- Materials/spec choices
+- Finish expectations
+- Compliance/durability needs
+- Labour difficulty
+- Any missing information that would change the final price
 
 STAGE 1 OUTPUT RULES
 
-Return ONLY numbered clarification questions first.
+Return ONLY clarification questions.
 
-Do NOT write headings before the questions.
+You MUST ask between 5 and 10 questions.
+Do not ask fewer than 5 questions.
+Do not ask more than 10 questions.
+
+Do NOT write a heading.
 Do NOT write "Clarification questions:".
 Do NOT write an intro sentence.
-Do NOT only ask one or two questions unless the job is already extremely clear.
+Do NOT write assumptions.
+Do NOT write pricing.
+Do NOT write materials.
+Do NOT write totals.
+Do NOT write a summary.
 
-Ask ALL useful questions required for an accurate quote.
-Ask up to 10 questions.
-Each question must be specific, practical, and needed for pricing accuracy.
-Each question must be on its own numbered line.
+Each question must:
+- Be numbered
+- Be on its own line
+- Be specific to this job
+- Help improve pricing accuracy
 
-After the questions, output exactly this heading:
+Output example format:
 
-ASSUMPTIONS USED
-
-Then list concise numbered assumptions.
-
-Do NOT output materials.
-Do NOT output pricing.
-Do NOT output calculations.
-Do NOT output totals.
-Do NOT output a quote summary.
-Do NOT proceed to Stage 2 until the user replies.
+1. What is the total square metre area of the deck?
+2. What height will the deck be above ground level?
+3. Is the site coastal, exposed, or subject to high wind?
+4. What decking material would you like priced?
+5. Is access easy for carrying materials and digging footings?
 `.trim();
 }
 
@@ -350,22 +359,16 @@ function parseStage1Output(text) {
     .filter(Boolean);
 
   const questions = [];
-  const assumptions = [];
-  let inAssumptions = false;
 
   for (const line of lines) {
     const lower = line.toLowerCase();
 
-    if (lower.includes('assumptions used')) {
-      inAssumptions = true;
-      continue;
-    }
-
     if (
-      lower === 'clarification questions' ||
-      lower === 'clarification questions:' ||
+      lower.includes('clarification questions') ||
+      lower.includes('assumptions used') ||
       lower.includes('here are') ||
-      lower.includes('before i can')
+      lower.includes('before i can') ||
+      lower.includes('i need')
     ) {
       continue;
     }
@@ -377,16 +380,12 @@ function parseStage1Output(text) {
 
     if (!clean) continue;
 
-    if (inAssumptions) {
-      assumptions.push(clean);
-    } else {
-      questions.push(clean);
-    }
+    questions.push(clean);
   }
 
   return {
-    followUpQuestions: questions,
-    assumptions
+    followUpQuestions: questions.slice(0, 10),
+    assumptions: []
   };
 }
 

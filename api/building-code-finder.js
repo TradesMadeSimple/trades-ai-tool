@@ -201,10 +201,8 @@ async function openAIResponsesWithSearch(prompt) {
       Authorization: `Bearer ${OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
-      reasoning: {
-        effort: 'high'
-      },
+      model: 'gpt-5',
+reasoning: { effort:'low' },
       tools: [
         {
           type: 'web_search_preview'

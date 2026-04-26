@@ -67,10 +67,7 @@ async function logUsage({ userId, mode, creditsUsed }) {
 
 async function deductCredits(userId, creditsToDeduct) {
   const profile = await getProfile(userId);
-
-  if (!profile) {
-    throw new Error('Profile not found');
-  }
+  if (!profile) throw new Error('Profile not found');
 
   const currentCredits = Number(profile.credits || 0);
 
@@ -90,15 +87,10 @@ async function deductCredits(userId, creditsToDeduct) {
 }
 
 async function enforceUsageLimits(userId) {
-  if (!userId) {
-    throw new Error('Missing user_id');
-  }
+  if (!userId) throw new Error('Missing user_id');
 
   const profile = await getProfile(userId);
-
-  if (!profile) {
-    throw new Error('Profile not found');
-  }
+  if (!profile) throw new Error('Profile not found');
 
   const currentCredits = Number(profile.credits || 0);
 
@@ -122,54 +114,78 @@ function buildBuildingCodePrompt({
   question
 }) {
   return `
-You are a building code and compliance research assistant for trade businesses.
+ROLE:
+You are a Code & Compliance Clause Finder for trade and construction businesses.
 
-Your job is to search for the most relevant building code, regulation, standard, council guidance, or official source based on the user's location and question.
+TASK:
+Answer the user's question by doing deep research based on the location, trade, and project type they provide.
 
-USER DETAILS
-Location / Area: ${location}
-Trade: ${trade}
-Project Type: ${projectType}
-Question / Scenario:
+Use the user's location / region / country plus whether the job is Residential or Commercial to determine which building codes, regulations, council rules, standards, permits, compliance guides, or official authorities are relevant.
+
+You do NOT have uploaded documents. You must independently research current official sources.
+
+USER LOCATION:
+${location}
+
+USER TRADE:
+${trade}
+
+PROJECT TYPE:
+${projectType}
+
+QUESTION:
 ${question}
 
-RESEARCH RULES
-- Search current and official sources first.
-- Prioritise government, council, regulator, standards body, and official building code sources.
-- If the question is New Zealand based, prioritise:
-  - building.govt.nz
-  - legislation.govt.nz
-  - local council websites
-  - WorkSafe where relevant
-  - MBIE guidance
-- If the exact answer is not clear, say that clearly.
-- Do not guess clause numbers.
-- Do not invent source links.
-- Do not claim a clause exists unless you found it.
-- If a paid or restricted standard is likely required, say that and identify the likely standard.
+SEARCH RULES:
+- Think hard before answering.
+- Research deeply across current official sources.
+- Adapt your research to the user's location automatically.
+- Use project type heavily:
+  - Residential may use housing, dwelling, domestic, homeowner, or residential rules.
+  - Commercial may use commercial occupancy, accessibility, fire, workplace, public use, or business premises rules.
+- Prioritise official government, regulator, council, code authority, standards body, and permitting sources for that location.
+- Use the most recent version of any law, code, regulation, standard, or guidance.
+- If multiple jurisdictions may apply, prioritise the most specific relevant authority first:
+  1. City / council / local authority
+  2. State / province / region
+  3. National building code / act / regulation
+- Do not rely on blogs, forums, social posts, supplier pages, or random websites unless no official source exists.
+- If exact clauses are unavailable publicly, state that clearly.
+- Do not guess clause numbers, page numbers, or links.
+- If a paid or restricted standard likely applies, identify the standard and state that exact clauses may require paid access.
 
-OUTPUT FORMAT
+OUTPUT FORMAT:
 
-## Direct Answer
-Give a clear answer in plain English.
+Answer:
+<one sentence direct answer>
 
-## Code / Regulation Found
-Name the building code, act, regulation, council rule, or standard.
+Code/Standard:
+<name of relevant code, act, regulation, council rule, standard, permit guide, or official document>
 
-## Clause / Section
-Give the clause, section, schedule, page, or closest official reference if found.
+Clause/Section:
+<clause, section, schedule, page, article, table, figure, or closest official identifier>
 
-## Source Link
-Provide the official source link.
+Source:
+<official source name>
 
-## What This Means On Site
-Explain what the user should do in practical trade language.
+Link:
+<direct official URL>
 
-## Confidence
-High / Medium / Low
+Confidence:
+<Low / Medium / High>
 
-## Important Note
-Include a short reminder that the user should confirm final compliance with the relevant council, inspector, licensed professional, or official standard where required.
+Plain English Meaning:
+<brief practical explanation for someone on site>
+
+Verification Note:
+<brief note telling the user what should be verified with the council, inspector, licensed professional, or official standard if needed>
+
+IMPORTANT:
+- Be precise.
+- Do not guess.
+- Prefer official sources.
+- If uncertain, say exactly what could not be verified.
+- Keep the answer concise but highly useful.
 `.trim();
 }
 
@@ -187,7 +203,7 @@ async function openAIResponsesWithSearch(prompt) {
     body: JSON.stringify({
       model: OPENAI_MODEL,
       reasoning: {
-        effort: 'medium'
+        effort: 'high'
       },
       tools: [
         {

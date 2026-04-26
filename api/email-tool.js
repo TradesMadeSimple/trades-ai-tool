@@ -69,6 +69,29 @@ function formatExamples(writingExamples) {
     .join("\n\n");
 }
 
+function formatPlainEmail(text) {
+  let clean = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  clean = clean.replace(
+    /^(Hi[^,\n]*,|Hello[^,\n]*,|Hey[^,\n]*,|Kia ora[^,\n]*,)\s*/i,
+    "$1\n\n"
+  );
+
+  clean = clean.replace(/([.!?])\s+/g, "$1\n\n");
+
+  clean = clean.replace(
+    /\n\n?(Cheers,|Thanks,|Kind regards,|Regards,|Many thanks,)\s+/i,
+    "\n\n$1\n"
+  );
+
+  clean = clean.replace(/\n{3,}/g, "\n\n").trim();
+
+  return clean;
+}
+
 function buildGeneratePrompt({ customerEmail, replyBrief, writingExamples }) {
   const examplesText = formatExamples(writingExamples);
   const replyInstruction =
@@ -98,8 +121,22 @@ Do not use headings.
 Do not add a subject line.
 Do not use bullet points unless the user clearly asks for them.
 Format it like a real email with line breaks.
-Use one greeting line, then a blank line, then the body, then a blank line, then the sign off, then the name if a name is naturally included.
-Do not return the full email in one paragraph.
+Use this exact plain text structure:
+
+Greeting line
+
+Short body paragraph
+
+Second short body paragraph if needed
+
+Sign off
+
+Name if naturally included
+
+Never return the email in one single paragraph.
+No markdown.
+No labels.
+No explanations.
 
 Saved writing examples:
 ${examplesText}
@@ -151,8 +188,22 @@ Do not use headings.
 Do not add a subject line.
 Do not use bullet points unless the current draft already uses them.
 Format it like a real email with line breaks.
-Use one greeting line, then a blank line, then the body, then a blank line, then the sign off, then the name if a name is naturally included.
-Do not return the full email in one paragraph.
+Use this exact plain text structure:
+
+Greeting line
+
+Short body paragraph
+
+Second short body paragraph if needed
+
+Sign off
+
+Name if naturally included
+
+Never return the email in one single paragraph.
+No markdown.
+No labels.
+No explanations.
 
 Saved writing examples:
 ${examplesText}
@@ -294,7 +345,7 @@ export default async function handler(req, res) {
       return sendJson(res, 400, { error: "Invalid mode." });
     }
 
-    const reply = await callOpenAI(prompt);
+    const reply = formatPlainEmail(await callOpenAI(prompt));
 
     let updatedProfile = profile;
 

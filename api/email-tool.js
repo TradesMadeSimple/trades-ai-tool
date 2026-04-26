@@ -96,7 +96,6 @@ Keep it professional, friendly, and clear.
 Do not over explain.
 Do not use headings.
 Do not add a subject line.
-Do not use bullet points unless the user clearly asks for them.
 
 Saved writing examples:
 ${examplesText}
@@ -122,10 +121,10 @@ function buildRewritePrompt({
 
   const actionMap = {
     warmer: "Make the reply warmer and friendlier without making it fake or too long.",
-    firmer: "Make the reply firmer and more direct, while still being professional.",
+    firmer: "Make the reply firmer and more direct while still professional.",
     shorter: "Shorten the reply while keeping the key message.",
-    longer: "Make the reply longer and more helpful, but do not add prices or made up details.",
-    from_edits: "Improve the user's edited reply while keeping their changes, meaning, and wording style.",
+    longer: "Make the reply longer and more helpful but do not add made up details.",
+    from_edits: "Improve the user's edited reply while keeping their meaning and style.",
   };
 
   return `
@@ -137,16 +136,12 @@ ${actionMap[action] || actionMap.from_edits}
 Important writing rules:
 Never use hyphens, en dashes, or em dashes.
 Sound human and natural.
-Do not sound cringe, overly excited, fake, corporate, or robotic.
-Keep the wording simple, like a real trade business owner replying to a customer.
+Do not sound cringe, fake, corporate, or robotic.
+Keep the wording simple.
 Keep the meaning of the current draft.
 Match the user's writing style if examples are provided.
 Do not add made up prices, dates, promises, site visit times, or job details.
-Do not add a price unless the user already included one.
-Do not over explain.
-Do not use headings.
-Do not add a subject line.
-Do not use bullet points unless the current draft already uses them.
+Do not add a price unless already included.
 
 Saved writing examples:
 ${examplesText}
@@ -154,7 +149,7 @@ ${examplesText}
 Original customer email:
 ${customerEmail || "Not provided"}
 
-Original instruction from user:
+Original instruction:
 ${replyBrief || "Not provided"}
 
 Current draft:
@@ -177,7 +172,12 @@ async function callOpenAI(prompt) {
     },
     body: JSON.stringify({
       model: "gpt-5.4-mini",
-      input: prompt,
+      input: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
     }),
   });
 
@@ -187,7 +187,23 @@ async function callOpenAI(prompt) {
     throw new Error(data.error?.message || "OpenAI request failed.");
   }
 
-  return data.output_text || "No reply generated.";
+  const directText = data.output_text || "";
+
+  const nestedText =
+    Array.isArray(data.output)
+      ? data.output
+          .flatMap(item => item.content || [])
+          .map(part => part.text || "")
+          .join("")
+      : "";
+
+  const finalText = (directText || nestedText || "").trim();
+
+  if (!finalText) {
+    throw new Error("AI returned no text.");
+  }
+
+  return finalText;
 }
 
 export default async function handler(req, res) {
@@ -202,10 +218,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing Supabase environment variables.");
-    }
-
     const body = req.body || {};
     const {
       user_id,
@@ -219,10 +231,6 @@ export default async function handler(req, res) {
 
     if (!user_id) {
       return sendJson(res, 400, { error: "Missing user_id." });
-    }
-
-    if (!mode) {
-      return sendJson(res, 400, { error: "Missing mode." });
     }
 
     const profile = await getProfile(user_id);
@@ -242,9 +250,7 @@ export default async function handler(req, res) {
 
     if (mode === "generate_email_reply") {
       if (!customerEmail) {
-        return sendJson(res, 400, {
-          error: "Missing customer email.",
-        });
+        return sendJson(res, 400, { error: "Missing customer email." });
       }
 
       prompt = buildGeneratePrompt({

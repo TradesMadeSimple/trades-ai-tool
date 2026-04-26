@@ -53,8 +53,7 @@ async function updateCredits(userId, newCredits) {
 }
 
 function isUnlimitedPlan(plan) {
-  const p = String(plan || "").toLowerCase();
-  return p.includes("unlimited") || p.includes("business");
+  return false;
 }
 
 function formatExamples(writingExamples) {

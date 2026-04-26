@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_BUILDING_CODE_MODEL || 'gpt-5.5';
+const OPENAI_MODEL = process.env.OPENAI_BUILDING_CODE_MODEL || 'gpt-5-mini';
 
 const TOOL_COST = 1;
 const DAILY_RUN_LIMIT = 100;
@@ -28,6 +28,30 @@ function safeText(value) {
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function extractResponseText(data) {
+  if (data?.output_text) return data.output_text;
+
+  const output = Array.isArray(data?.output) ? data.output : [];
+
+  const parts = [];
+
+  for (const item of output) {
+    const content = Array.isArray(item?.content) ? item.content : [];
+
+    for (const block of content) {
+      if (block?.type === 'output_text' && block?.text) {
+        parts.push(block.text);
+      }
+
+      if (block?.text) {
+        parts.push(block.text);
+      }
+    }
+  }
+
+  return parts.join('\n').trim();
 }
 
 async function getProfile(userId) {
@@ -118,11 +142,7 @@ ROLE:
 You are a Code & Compliance Clause Finder for trade and construction businesses.
 
 TASK:
-Answer the user's question by doing deep research based on the location, trade, and project type they provide.
-
-Use the user's location / region / country plus whether the job is Residential or Commercial to determine which building codes, regulations, council rules, standards, permits, compliance guides, or official authorities are relevant.
-
-You do NOT have uploaded documents. You must independently research current official sources.
+Answer the user's question by researching current official sources based on the location, trade, and project type.
 
 USER LOCATION:
 ${location}
@@ -137,22 +157,20 @@ QUESTION:
 ${question}
 
 SEARCH RULES:
-- Think hard before answering.
-- Research deeply across current official sources.
-- Adapt your research to the user's location automatically.
-- Use project type heavily:
+- Search current official sources.
+- Adapt your answer to the user's location.
+- Use the project type heavily:
   - Residential may use housing, dwelling, domestic, homeowner, or residential rules.
   - Commercial may use commercial occupancy, accessibility, fire, workplace, public use, or business premises rules.
-- Prioritise official government, regulator, council, code authority, standards body, and permitting sources for that location.
-- Use the most recent version of any law, code, regulation, standard, or guidance.
+- Prioritise official government, regulator, council, code authority, standards body, and permitting sources.
 - If multiple jurisdictions may apply, prioritise the most specific relevant authority first:
   1. City / council / local authority
   2. State / province / region
   3. National building code / act / regulation
 - Do not rely on blogs, forums, social posts, supplier pages, or random websites unless no official source exists.
-- If exact clauses are unavailable publicly, state that clearly.
 - Do not guess clause numbers, page numbers, or links.
-- If a paid or restricted standard likely applies, identify the standard and state that exact clauses may require paid access.
+- If a paid or restricted standard likely applies, identify the standard and say exact clauses may require paid access.
+- Keep the answer concise.
 
 OUTPUT FORMAT:
 
@@ -179,13 +197,6 @@ Plain English Meaning:
 
 Verification Note:
 <brief note telling the user what should be verified with the council, inspector, licensed professional, or official standard if needed>
-
-IMPORTANT:
-- Be precise.
-- Do not guess.
-- Prefer official sources.
-- If uncertain, say exactly what could not be verified.
-- Keep the answer concise but highly useful.
 `.trim();
 }
 
@@ -201,8 +212,10 @@ async function openAIResponsesWithSearch(prompt) {
       Authorization: `Bearer ${OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'gpt-5',
-reasoning: { effort:'low' },
+      model: OPENAI_MODEL,
+      reasoning: {
+        effort: 'low'
+      },
       tools: [
         {
           type: 'web_search_preview'
@@ -223,7 +236,13 @@ reasoning: { effort:'low' },
     throw new Error(data?.error?.message || JSON.stringify(data));
   }
 
-  return data.output_text || '';
+  const text = extractResponseText(data);
+
+  if (!text) {
+    throw new Error('OpenAI returned no readable text. Try again with a simpler question.');
+  }
+
+  return text;
 }
 
 export default async function handler(req, res) {
@@ -271,7 +290,7 @@ export default async function handler(req, res) {
 
     return json(res, 200, {
       success: true,
-      result: result || 'No building code result returned.'
+      result
     });
 
   } catch (error) {

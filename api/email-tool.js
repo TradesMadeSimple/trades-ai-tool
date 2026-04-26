@@ -71,6 +71,10 @@ function formatExamples(writingExamples) {
 
 function buildGeneratePrompt({ customerEmail, replyBrief, writingExamples }) {
   const examplesText = formatExamples(writingExamples);
+  const replyInstruction =
+    replyBrief && String(replyBrief).trim()
+      ? replyBrief
+      : "Write the best natural professional reply based on the customer's email.";
 
   return `
 You are an email assistant for a trade or construction business.
@@ -101,7 +105,7 @@ Customer email:
 ${customerEmail}
 
 What the user wants to say:
-${replyBrief}
+${replyInstruction}
 
 Return only the email reply.
 `;
@@ -172,7 +176,7 @@ async function callOpenAI(prompt) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+      model: "gpt-5.4-mini",
       input: prompt,
     }),
   });
@@ -237,9 +241,9 @@ export default async function handler(req, res) {
     let prompt = "";
 
     if (mode === "generate_email_reply") {
-      if (!customerEmail || !replyBrief) {
+      if (!customerEmail) {
         return sendJson(res, 400, {
-          error: "Missing customer email or reply brief.",
+          error: "Missing customer email.",
         });
       }
 

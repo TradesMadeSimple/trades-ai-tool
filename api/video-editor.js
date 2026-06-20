@@ -1,3 +1,11 @@
+import formidable from "formidable";
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -11,6 +19,31 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function toSingle(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function toArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+async function parseForm(req) {
+  const form = formidable({
+    multiples: true,
+    maxFileSize: 250 * 1024 * 1024,
+    maxTotalFileSize: 750 * 1024 * 1024,
+    keepExtensions: true,
+  });
+
+  return new Promise((resolve, reject) => {
+    form.parse(req, function (err, fields, files) {
+      if (err) reject(err);
+      else resolve({ fields, files });
+    });
+  });
 }
 
 async function getProfile(userId) {
@@ -71,22 +104,25 @@ export default async function handler(req, res) {
       throw new Error("Missing Supabase environment variables.");
     }
 
-    const body = req.body || {};
-    const { user_id, clip_count, has_reference } = body;
+    const { fields, files } = await parseForm(req);
 
-    if (!user_id) {
+    const userId = toSingle(fields.user_id);
+    const clips = toArray(files.clips);
+    const reference = toSingle(files.reference);
+
+    if (!userId) {
       return sendJson(res, 400, { error: "Missing user_id." });
     }
 
-    if (!clip_count || Number(clip_count) < 1) {
+    if (!clips.length) {
       return sendJson(res, 400, { error: "Missing video clips." });
     }
 
-    if (!has_reference) {
+    if (!reference) {
       return sendJson(res, 400, { error: "Missing reference video." });
     }
 
-    const profile = await getProfile(user_id);
+    const profile = await getProfile(userId);
 
     if (!profile) {
       return sendJson(res, 404, { error: "Profile not found." });
@@ -103,19 +139,29 @@ export default async function handler(req, res) {
 
     if (!unlimited) {
       updatedProfile = await updateCredits(
-        user_id,
+        userId,
         currentCredits - VIDEO_EDITOR_CREDIT_COST
       );
     }
 
     return sendJson(res, 200, {
       success: true,
-      status: "mock_generated",
-      message: "Video editor backend connected successfully.",
+      status: "files_received",
+      message: "Video files received successfully.",
       result: {
-        preview_message: "Reel ready. Real video processing will be connected next.",
-        clip_count: Number(clip_count),
-        has_reference: true,
+        preview_message:
+          "Files received successfully. Real video processing will be connected next.",
+        clip_count: clips.length,
+        clips: clips.map((file) => ({
+          name: file.originalFilename,
+          size: file.size,
+          type: file.mimetype,
+        })),
+        reference: {
+          name: reference.originalFilename,
+          size: reference.size,
+          type: reference.mimetype,
+        },
       },
       credits: updatedProfile?.credits ?? profile.credits,
       plan: updatedProfile?.plan ?? profile.plan,

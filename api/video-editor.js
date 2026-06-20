@@ -107,8 +107,19 @@ export default async function handler(req, res) {
     const { fields, files } = await parseForm(req);
 
     const userId = toSingle(fields.user_id);
-    const clips = toArray(files.clips);
     const reference = toSingle(files.reference);
+
+let clips = [];
+
+if (files.clips) {
+  clips = toArray(files.clips);
+} else if (files["clips[]"]) {
+  clips = toArray(files["clips[]"]);
+} else {
+  clips = Object.keys(files)
+    .filter((key) => key !== "reference")
+    .flatMap((key) => toArray(files[key]));
+}
 
     if (!userId) {
       return sendJson(res, 400, { error: "Missing user_id." });

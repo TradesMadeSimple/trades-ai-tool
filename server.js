@@ -123,10 +123,10 @@ async function renderBasicReel(inputFiles, outputFile) {
   await execFileAsync("ffmpeg", [
     "-y",
     "-i", joinedPath,
-    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+    "-vf", "scale=540:960:force_original_aspect_ratio=increase,crop=540:960",
     "-r", "30",
     "-c:v", "libx264",
-    "-preset", "veryfast",
+    "-preset", "ultrafast",
     "-crf", "23",
     "-c:a", "aac",
     "-b:a", "128k",

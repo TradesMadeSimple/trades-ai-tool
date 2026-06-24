@@ -99,7 +99,7 @@ app.get("/health", function (req, res) {
   });
 });
 
-app.post("/process-next-video-job", async function (req, res) {
+app.get("/process-next-video-job", async function (req, res) {
   try {
     const result = await processNextJob();
     res.json(result);
